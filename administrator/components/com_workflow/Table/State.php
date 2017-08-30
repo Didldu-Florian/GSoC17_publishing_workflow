@@ -55,16 +55,31 @@ class State extends Table
 			throw new \Exception(\JText::_('JLIB_APPLICATION_ERROR_DELETE_NOT_PERMITTED'), 403);
 		}
 
+		if (is_null($pk))
+		{
+			$pk = array();
+
+			foreach ($this->_tbl_keys as $key)
+			{
+				$pk[$key] = $this->$key;
+			}
+		}
+		elseif (!is_array($pk))
+		{
+			$pk = array($this->_tbl_key => $pk);
+		}
+
+		$db  = $this->getDbo();
+
+		$state = new WTable\State($db);
+
+		if (!$state->load($pk))
+		{
+			return false;
+		}
+
 		$db  = $this->getDbo();
 		$app = \JFactory::getApplication();
-
-		// Gets the update site names.
-		$query = $db->getQuery(true)
-			->select($db->qn(array('id', 'title', 'default')))
-			->from($db->qn('#__workflow_states'))
-			->where($db->qn('id') . ' = ' . (int) $pk);
-		$db->setQuery($query);
-		$state = $db->loadObject();
 
 		if ($state->default)
 		{
@@ -73,32 +88,40 @@ class State extends Table
 			return false;
 		}
 
+		if ($state->published != -2)
+		{
+			// Delete only trashed => Error message
+
+			return false;
+		}
+
 		// Delete the update site from all tables.
 		try
 		{
-			$query = $db->getQuery(true)
-				->select("*")
-				->from($db->qn('#__workflow_transitions'))
-				->where($db->qn('to_state_id') . ' = ' . (int) $pk, 'OR')
-				->where($db->qn('from_state_id') . ' = ' . (int) $pk);
-
-			$db->setQuery($query);
-
-			$transitions = $db->loadAssocList();
-			$table = \JTable::getInstance('Transition', 'Table');
-
-			var_dump($table);
-			exit;
-
-			foreach ($transitions as $k => $transition)
+			// First delete the item then the transitions
+			if (parent::delete($pk))
 			{
-				if ($table->load(array("id" => $transition->id)))
-				{
-					$table->delete();
-				}
-			}
+				// Delete transitions
+				$transition = new WTable\Transition($db);
 
-			return parent::delete($pk);
+				$query = $this->getDbo()->getQuery(true)
+						->select($db->qn('id'))
+						->from($db->qn('#__workflow_transitions'))
+						->where($db->qn('to_state_id') . ' = ' . (int) $state->id, 'OR')
+						->where($db->qn('from_state_id') . ' = ' . (int) $state->id);
+
+				$transitions = $this->getDbo()->setQuery($query)->loadColumn();
+
+				foreach ($transitions as $trans_id)
+				{
+					if ($transition->load($trans_id))
+					{
+						$transition->delete();
+					}
+				}
+
+				return true;
+			}
 
 		}
 		catch (\RuntimeException $e)
