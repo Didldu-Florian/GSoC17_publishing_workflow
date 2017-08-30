@@ -60,11 +60,11 @@ class State extends Table
 
 		// Gets the update site names.
 		$query = $db->getQuery(true)
-			->select($db->qn(array('id', 'title')))
+			->select($db->qn(array('id', 'title', 'default')))
 			->from($db->qn('#__workflow_states'))
 			->where($db->qn('id') . ' = ' . (int) $pk);
 		$db->setQuery($query);
-		$state = $db->loadResult();
+		$state = $db->loadObject();
 
 		if ($state->default)
 		{
@@ -77,11 +77,26 @@ class State extends Table
 		try
 		{
 			$query = $db->getQuery(true)
-				->delete($db->qn('#__workflow_transitions'))
+				->select("*")
+				->from($db->qn('#__workflow_transitions'))
 				->where($db->qn('to_state_id') . ' = ' . (int) $pk, 'OR')
 				->where($db->qn('from_state_id') . ' = ' . (int) $pk);
 
-			$db->setQuery($query)->execute();
+			$db->setQuery($query);
+
+			$transitions = $db->loadAssocList();
+			$table = \JTable::getInstance('Transition', 'Table');
+
+			var_dump($table);
+			exit;
+
+			foreach ($transitions as $k => $transition)
+			{
+				if ($table->load(array("id" => $transition->id)))
+				{
+					$table->delete();
+				}
+			}
 
 			return parent::delete($pk);
 

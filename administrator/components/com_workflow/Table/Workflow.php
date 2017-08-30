@@ -75,16 +75,41 @@ class Workflow extends Table
 		try
 		{
 			$query = $db->getQuery(true)
-				->delete($db->qn('#__workflow_states'))
+				->select("*")
+				->from($db->qn('#__workflow_states'))
 				->where($db->qn('workflow_id') . ' = ' . (int) $pk);
 			$db->setQuery($query);
-			$db->execute();
+			$states = $db->loadObjectList();
+			$table = \JTable::getInstance("State", "Table");
+
+			var_dump($table);
+
+			foreach ($states as $k => $state)
+			{
+				if ($table->load(array("id" => $state->id)))
+				{
+					$table->delete();
+				}
+			}
 
 			$query = $db->getQuery(true)
-				->delete($db->qn('#__workflow_transitions'))
+				->select("*")
+				->from($db->qn('#__workflow_transitions'))
 				->where($db->qn('workflow_id') . ' = ' . (int) $pk);
 			$db->setQuery($query);
-			$db->execute();
+			$transitions = $db->loadObjectList();
+			$table = \JTable::getInstance("Transition", "Table");
+
+			var_dump($table);
+			exit;
+
+			foreach ($transitions as $k => $transition)
+			{
+				if ($table->load(array("id" => $transition->id)))
+				{
+					$table->delete();
+				}
+			}
 
 			return parent::delete($pk);
 
